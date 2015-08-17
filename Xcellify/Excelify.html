@@ -1,0 +1,135 @@
+<html>
+<head>
+	<title>Excelify</title>
+<style>
+body{font-family:sans-serif;}
+.btn{border-radius:5px;border:1px solid #999;  -webkit-user-select: none;}
+.btn:hover{background-color:#AAA;}
+.pointer{cursor:pointer;}
+.row{white-space: nowrap;}
+.cell{display:inline-block;border:2px solid #999;width:150px;min-height:24px;max-height:24px;height:24px;vertical-align: top;}
+.cell input{border:none;padding:5px;width:100%;}
+.cellheading{font-weight:bold;}
+</style>
+	<script src="Cr.js"></script>
+	<script src="Excelify.js"></script>
+	<script type="text/javascript">
+
+		var containerId = "excelTable";
+		var headingText = "ABCDEFABCDEFABCDEFABCDEFABCDEFABCDEF";
+		var excelController;
+
+		function createTestFields(conainerElm){
+			var cols = 6;
+			var rows = 28;
+			var c, r, rowElm;
+
+			rowElm = Cr.elm('div',{class:"headingrow row excelrow"},[],conainerElm);
+
+			Cr.elm('div',{class:"cell cellheading",  event:['click', selectAll]},[
+				Cr.txt("Select All")
+			],rowElm);
+
+			for( c=0; c<cols; c++ ){
+				Cr.elm('div',{class:"cell cellheading excelheading", 'data-col':c, event:['click', selectColumn], 'data-col-search':headingText.substr(c,3)},[
+					Cr.txt(headingText.substr(c,3) + ' ('+c+')')
+				],rowElm);
+			}
+
+			for( r=0; r<rows; r++ ){
+				rowElm = Cr.elm('div',{class:"excelrow row", 'data-row-search':headingText.substr(r,3)},[],conainerElm);
+
+				Cr.elm('div',{class:"cell cellheading excelheading", 'data-row':r, event:['click', selectRow]},[
+					Cr.txt(headingText.substr(r,3) + ' ('+r+')')
+				],rowElm);
+
+				for( c=0; c<cols; c++ ){
+					var style='';
+					if( c==3 ){
+						//style='display:none;';
+					}
+					Cr.elm('div',{class:"cell excelcell", style:style, 'data-col-search':headingText.substr(c,3)},[
+						Cr.elm('input',{class:'cellinput',type:'text', value: "row"+r+"-col"+c})
+					],rowElm);
+				}
+			}
+		}
+
+		function selectColumn(ev){
+			//excelController.selectColumn(ev.target.getAttribute('data-col')-0);
+		}
+
+		function selectRow(ev){
+			//excelController.selectRow(ev.target.getAttribute('data-row')-0);
+		}
+
+		function selectAll(ev){
+			excelController.selectAll();
+		}
+
+		function searchColumns(ev){
+			var text = ev.target.value.toUpperCase();
+			applySearch('cell', 'data-col-search', text);
+		};
+
+		function searchRows(ev){
+			var text = ev.target.value.toUpperCase();
+			applySearch('row', 'data-row-search', text);
+		}
+
+		function applySearch(classSel, dataSel, searchText){
+			if( searchText.length ){
+				styleElementList(document.querySelectorAll('.'+classSel+'['+dataSel+']'), {display: 'none'});
+				styleElementList(document.querySelectorAll('.'+classSel+'['+dataSel+'*="'+searchText+'"]'), {display: ''});
+			}else{
+				styleElementList(document.querySelectorAll('.'+classSel+'['+dataSel+']'), {display: ''});
+			}
+			excelController.rebuildIndex(); // <--- IMPORTANT if you want the hidden cells to not be copied, rebuild the index to skipInvisibleCells
+		}
+
+		function styleElementList(list, styleprops){
+			for( var i=0,l=list.length,li,skey; i<l; i++ ){
+				li = list[i];
+				for( skey in styleprops ){
+					li.style[skey] = styleprops[skey];
+				}
+			}
+		}
+
+		function testStart(){
+			var conatinerElm = document.getElementById(containerId);
+			createTestFields(conatinerElm);
+
+			excelController = new Excelify({
+				containerElm: conatinerElm, 		// scope event listening and processing to a specific context, you can think <table>
+				// selectors must be valid in querySelectorAll, just add a unique class to cells and rows to identify them
+				cellSelector: '.excelcell', 		// must be unique to cells that contain input.cellInputClassName (i.e not headings), (think 'td.excelcell')
+				rowSelector: '.excelrow',   		// must be unique to rows that contain the cells input.cellInputClassName (think 'tr.excelrow', currently mandatory see rebuildIndex)
+				cellInputClassName: 'cellinput', 	// input elements that have the class will be the source of keyboard and click events
+				headingClassName: 'excelheading',   // supports col and row headings, heading must be within a .rowSelector - except for top row onlly one allowed per row
+				copyAreaSelector: '#copyArea',
+				buttonBar: document.getElementById('excelButtonBar') // optional button bar already in your HTML, supported buttons: span.undo span.redo
+			});
+
+			document.getElementById('colSearch').addEventListener('change', searchColumns);
+			document.getElementById('rowSearch').addEventListener('change', searchRows);
+			document.getElementById('colSearch').addEventListener('keyup', searchColumns);
+			document.getElementById('rowSearch').addEventListener('keyup', searchRows);
+		}
+		
+	</script>
+</head>
+<body onload="testStart()">
+	<h3>Excelify</h3>
+	<div id="excelButtonBar"><span class="pointer undo">&larr; undo </span><span class="pointer redo"> redo &rarr;</span>
+	Column Search <input type="search" id="colSearch"/> Row Search <input type="search" id="rowSearch"/></div>
+	<div id="excelTable"></div>
+
+	<div id="copyArea" style="display:none;position:fixed;top:25%;left:25%;right:25%;width:50%;opacity:1.0;background-color:white;padding:15px;border:1px solid black;box-shadow:3px 3px 3px black;">
+		<div>Copy or paste now C Copy - P Paste - Z Undo - Shift Z Redo</div>
+		<!-- please note clipboard state and row/col search current size may be currently incompatible - be careful not to loose states -->
+		<textarea style="width:100%;height:150px;"></textarea>
+	</div>
+
+</body>
+</html>

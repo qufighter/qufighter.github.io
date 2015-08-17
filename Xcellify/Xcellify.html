@@ -1,0 +1,169 @@
+<html>
+<head>
+	<title>Xcellify</title>
+<style>
+body{font-family:sans-serif;}
+.btn{border-radius:5px;border:1px solid #999;  -webkit-user-select: none;}
+.btn:hover{background-color:#AAA;}
+.pointer{cursor:pointer;}
+
+/* you need these classes for the table to render properly */
+.row{white-space: nowrap;}
+.cell{display:inline-block;border:2px solid #999;width:150px;min-height:24px;max-height:24px;height:24px;vertical-align: top;position:relative;}
+.cell input{border:none;padding:5px;padding-left:15px;width:100%;}
+
+
+.cellheading{font-weight:bold;}
+#configKey{margin-bottom:10px;}
+</style>
+	<script src="Cr.js"></script>
+	<script src="Xcellify.js"></script>
+	<script src="HighlightClass.js"></script>
+	<script type="text/javascript">
+
+		var containerId = "xcellTable";
+		var headingText = "ABCDEFABCDEFABCDEFABCDEFABCDEFABCDEF";
+		var xcellController;
+
+		function createTestFields(conainerElm){
+			var cols = 6;
+			var rows = 28;
+			var c, r, rowElm;
+
+			rowElm = Cr.elm('div',{class:"headingrow row xcellrow"},[],conainerElm);
+
+			Cr.elm('div',{class:"cell cellheading",  event:['click', selectAll]},[
+				Cr.elm('div',{},[Cr.txt("Select All")])
+			],rowElm);
+
+			for( c=0; c<cols; c++ ){
+				Cr.elm('div',{class:"cell cellheading xcellheading", 'data-col':c, 'data-col-search':headingText.substr(c,3)},[
+					Cr.elm('div',{},[Cr.txt(headingText.substr(c,3) + ' ('+c+')')])
+				],rowElm);
+			}
+
+			for( r=0; r<rows; r++ ){
+				rowElm = Cr.elm('div',{class:"xcellrow row", 'data-row-search':headingText.substr(r,3)},[],conainerElm);
+
+				Cr.elm('div',{class:"cell cellheading xcellheading", 'data-row':r},[
+					Cr.elm('div',{},[Cr.txt(headingText.substr(r,3) + ' ('+r+')')])
+				],rowElm);
+
+				for( c=0; c<cols; c++ ){
+					var style='';
+					var cellElements=[
+						Cr.elm('input',{class:'xcellinput',type:'text', value: "Row "+r+" Col "+c})
+					];
+
+					if( c==3 ){
+						//style='display:none;';
+						cellElements.push(
+							Cr.elm('span',{style:'position:absolute;top:2px;right:3px;background-color:light-grey;',event:['click',gotClicked]},[Cr.txt('Edit')])
+						);
+					}
+					// why not contain the cell elements in some arbatrary divs for fun! really should be avoided but it should work fine!
+					cellElements = [Cr.elm('div',{class:'nest1'},[Cr.elm('div',{class:'nest2'},cellElements)])];
+					// if broken its not too obvious but cells shift and border appears inside the cell instead of on the cell wall
+
+					Cr.elm('div',{class:"cell xcellcell", style:style, 'data-col-search':headingText.substr(c,3)},cellElements,rowElm);
+				}
+			}
+		}
+
+		function gotClicked(){
+			alert('was clicked!');
+		}
+
+		function selectAll(ev){
+			xcellController.selectAll();
+		}
+
+		function searchColumns(ev){
+			var text = ev.target.value.toUpperCase();
+			applySearch('cell', 'data-col-search', text);
+		};
+
+		function searchRows(ev){
+			var text = ev.target.value.toUpperCase();
+			applySearch('row', 'data-row-search', text);
+		}
+
+		function applySearch(classSel, dataSel, searchText){
+			if( searchText.length ){
+				styleElementList(document.querySelectorAll('.'+classSel+'['+dataSel+']'), {display: 'none'});
+				styleElementList(document.querySelectorAll('.'+classSel+'['+dataSel+'*="'+searchText+'"]'), {display: ''});
+			}else{
+				styleElementList(document.querySelectorAll('.'+classSel+'['+dataSel+']'), {display: ''});
+			}
+			xcellController.rebuildIndex(); // <--- IMPORTANT if you want the hidden cells to not be copied, rebuild the index to skipInvisibleCells
+		}
+
+		function styleElementList(list, styleprops){
+			for( var i=0,l=list.length,li,skey; i<l; i++ ){
+				li = list[i];
+				for( skey in styleprops ){
+					li.style[skey] = styleprops[skey];
+				}
+			}
+		}
+
+		function testStart(){
+			var conatinerElm = document.getElementById(containerId);
+
+			//test commenting this out and see how it works
+			createTestFields(conatinerElm);
+
+			xcellController = new Xcellify({
+				containerElm: conatinerElm, 		// scope event listening and processing to a specific context, you can think <table>
+				// selectors must be valid in querySelectorAll, just add a unique class to cells and rows to identify them
+				cellSelector: '.xcellcell', 		// must be unique to cells that contain > input.cellInputClassName (i.e not headings), (think 'td.xcellcell')
+				rowSelector: '.xcellrow',			// must be unique to rows that contain the cells input.cellInputClassName (think 'tr.xcellrow', currently mandatory see rebuildIndex)
+				cellInputClassName: 'xcellinput',	// input elements that have the class will be the source of keyboard and click events
+				headingClassName: 'xcellheading',	// supports col and row headings, heading must be within a .rowSelector - except for top row only one allowed per row
+				skipInvisibleCells: false,
+				copyAreaSelector: '#copyArea',
+				buttonBar: document.getElementById('xcellButtonBar') // optional button bar already in your HTML, supported buttons: span.undo span.redo
+			});
+
+			document.getElementById('colSearch').addEventListener('change', searchColumns);
+			document.getElementById('rowSearch').addEventListener('change', searchRows);
+			document.getElementById('colSearch').addEventListener('keyup', searchColumns);
+			document.getElementById('rowSearch').addEventListener('keyup', searchRows);
+			document.getElementById('showOffConfig').addEventListener('click', showOffConfig);
+		}
+
+
+		function showOffConfig(ev){
+			if( confirm("This will allow you to witness the configuration (what classes go where) to help you configure your own.  It is not pretty and cannot be undone.  When you have analyzed the setup refresh the page to resume normal usage.  The one key point is that the select All field is not one of the headings") ){
+				var key = {
+					'xcellcell': {border: '3px solid blue'},
+					'xcellinput': {border: '3px solid orange', backgroundColor: 'yellow'},
+					'xcellrow': {border: '2px solid red'},
+					'xcellheading': {border: '3px solid green'},
+				};
+
+				highlightClasses.applyCss(key);
+				highlightClasses.showKey(document.getElementById('configKey'), key);
+			}
+		}
+		
+	</script>
+</head>
+<body onload="testStart()">
+	<h3>Xcellify</h3>
+	<div id="xcellButtonBar"><span class="pointer undo">&larr; undo </span><span class="pointer redo"> redo &rarr;</span>
+	Column Search <input type="search" id="colSearch"/> Row Search <input type="search" id="rowSearch"/></div>
+	<input type="button" id="showOffConfig" value="show configuraton" />
+	<div id="configKey"></div>
+	<div id="xcellTable"></div>
+
+	<div id="copyArea" style="display:none;position:fixed;top:25%;left:25%;right:25%;width:50%;opacity:1.0;background-color:white;padding:15px;border:1px solid black;box-shadow:3px 3px 3px black;">
+		<span style="float:right" class="close">X (ctrl)</span>
+		<div>Copy or paste now C Copy - P Paste - Z Undo - Shift Z Redo</div>
+		<!-- please note clipboard state and row/col search current size may be currently incompatible - be careful not to loose states -->
+		<textarea style="width:100%;height:150px;"></textarea>
+		<small style="font-size:10px;">tab delimited data</small>
+	</div>
+
+</body>
+</html>
