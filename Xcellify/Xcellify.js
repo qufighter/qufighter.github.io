@@ -58,6 +58,7 @@ var Xcellify = function(startupOptions){
     this.historyUtils.applyStateFn = this.applyHistoryState.bind(this);
     this.historyUtils.storeStateFn = this.storeStateInHistory.bind(this);
     this.clipboardUtils.copyAreaSelector = this.copyAreaSelector;
+    this.updateQuoteRex();
   };
 
   this.destroy = function(){ // not needed as long as container element stays the same and remains in the DOM, in which case you may call rebuildIndex if the table changes
@@ -192,6 +193,7 @@ var Xcellify = function(startupOptions){
     this.attachListener(document, 'keydown', this.keyboardDnEvents.bind(this));
     this.attachListener(document, 'keyup', this.keyboardUpEvents.bind(this));
     this.attachListener(document, 'focus', this.determineIfFocused.bind(this), true);
+    this.attachListener(document, 'click', this.checkIfFocusLost.bind(this));
   };
 
   this._attachedListeners = [];
@@ -209,8 +211,17 @@ var Xcellify = function(startupOptions){
     this._attachedListeners = [];
   };
 
+  this.checkIfFocusLost = function(ev){
+    if( !this.isDescendentOfContainer(ev.target) && (!this.copyAreaSelector || !this.findMatchingParent(ev.target, this.copyAreaSelector)) ){
+      this.hasFocus = 0;
+    }else{
+      //this.hasFocus = 1; // really not intended to re-gain focus via clicks.... but it could be helpful....
+    }
+  }
+
   this.determineIfFocused = function(ev){
-    if( this.findMatchingParent(ev.target, this.rowSelector) ||
+    var inputField = ev.target;
+    if( (this.hasClass(inputField, 'xcellinput') && this.findMatchingParent(ev.target, this.rowSelector)) ||
         this.findMatchingParent(ev.target, this.copyAreaSelector) ||
         (this.clipboardUtils.lastArea && ev.target == this.clipboardUtils.lastArea) ){
       this.hasFocus = 1;
@@ -389,13 +400,21 @@ var Xcellify = function(startupOptions){
     }
   };
 
+  this.selectionDelayMs=33;
+  this.selectionDelay=null;
+  this.deferredCellSelection = function(currentPosition){
+    clearTimeout(this.selectionDelay);
+    this.selectionDelay = setTimeout(function(){
+      this.selectBoxedCells(this.dragOrigin, currentPosition);
+    }.bind(this),this.selectionDelayMs);
+  };
+
   this.mouseMovedProcessor = function(evcell){
     if( !evcell ) return;
     var currentPosition;
     if( !this.hasClass(evcell, this.cellInputClassName) ){
       if( this.hasClass(evcell, this.headingClassName) ){
-        currentPosition = this.cellPosition(evcell);
-        this.selectBoxedCells(this.dragOrigin, currentPosition);
+        this.deferredCellSelection(this.cellPosition(evcell));
       }
       return; // in case user is still dragging, do not cancel until the mouse returns
     }else{
@@ -409,7 +428,7 @@ var Xcellify = function(startupOptions){
             singleCellEditingMode=true; // allow return to single editing mode on accidental multi box select
           }
         }
-        this.boxCells(this.dragOrigin, currentPosition); // if single editing this is superfluous
+        this.deferredCellSelection(currentPosition); // if single editing this is superfluous
       }
     }
   };
@@ -435,6 +454,17 @@ var Xcellify = function(startupOptions){
     }
     return evcell;
   };
+
+  this.isDescendentOfContainer = function(child){
+    child = child.parentNode;
+    while( child ){
+      if( child == this.containerElm ){
+        return true;
+      }
+      child = child.parentNode;
+    }
+    return false;
+  }
 
   this.findMatchingParent = function(child, selector){
     while( child && ! child.matches(selector)  ){ // use of .matches here might need some compatibility // https://developer.mozilla.org/en-US/docs/Web/API/Element/matches
@@ -575,7 +605,7 @@ var Xcellify = function(startupOptions){
 
   this.getTableCellXY = function(x,y){
     return this.tableCells[y][x];
-  }
+  };
 
   this.getCellValueForCopy = function(x,y){
     var v=this.getTableCellXY(x,y).value;
@@ -599,7 +629,7 @@ var Xcellify = function(startupOptions){
   };
 
   this.updateQuoteRex = function(){
-    this.cellDelimitRex = new RegExp(this.delimitCells,'g')
+    this.cellDelimitRex = new RegExp(this.delimitCells,'g');
     this.quoteRex = new RegExp(this.delimitCells+'|'+this.delimitRows+'|"');
   };
 
@@ -630,7 +660,7 @@ var Xcellify = function(startupOptions){
   this.getActiveCellSelectionValue = function(){
     if( this.activeCell ) return this.activeCellValue().slice(this.activeCell.selectionStart, this.activeCell.selectionEnd);
     return "";
-  }
+  };
 
   this.captureCellCopy = function(ev){
     var cursorSelSize = this.activeSelectionSize();
@@ -679,7 +709,7 @@ var Xcellify = function(startupOptions){
 
   this.valueForPastedCellData = function(d){
     if( d.charAt(0) == '"' ){
-      return d.substr(1,d.length-2).replace(/""/g,'"')
+      return d.substr(1,d.length-2).replace(/""/g,'"');
     }else{
       return d;
     }
@@ -861,7 +891,7 @@ var Xcellify = function(startupOptions){
     this.getTableCellXY = function(x,y){
       var row = this.tableCells[y] || empty_permanent;
       return row[x] || empty_permanent;
-    }
+    };
 
     this.styleCells = function(start, end, backgroundStyle){
       // this is completely optional and is still safe without override, should be faster than default function and getTableCellXY
@@ -871,7 +901,7 @@ var Xcellify = function(startupOptions){
       if(  yl > this.tableCells.length ) yl = this.tableCells.length;
       for( ; y<yl; y++ ){
         tc = this.tableCells[y];
-        xl=end.x+1
+        xl=end.x+1;
         if( xl > tc.length ) xl = tc.length;
         for( x=start.x; x<xl; x++ ){
           ic = tc[x];
