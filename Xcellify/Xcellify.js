@@ -212,7 +212,7 @@ var Xcellify = function(startupOptions){
   };
 
   this.checkIfFocusLost = function(ev){
-    if( !this.isDescendentOfContainer(ev.target) && (!this.copyAreaSelector || !this.findMatchingParent(ev.target, this.copyAreaSelector)) ){
+    if( !ev.target==this.containerElm && !this.isDescendentOfContainer(ev.target) && (!this.copyAreaSelector || !this.findMatchingParent(ev.target, this.copyAreaSelector)) ){
       this.hasFocus = 0;
     }else{
       //this.hasFocus = 1; // really not intended to re-gain focus via clicks.... but it could be helpful....
